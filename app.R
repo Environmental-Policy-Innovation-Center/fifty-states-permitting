@@ -25,7 +25,7 @@ gs4_deauth()
 
 SHEET_URL    <- "https://docs.google.com/spreadsheets/d/1NK1UMXMBYbJOSKN6QEYwbgfZeveMKgROiKqf977jD2s/edit?gid=0#gid=0"
 GEOJSON_PATH <- "www/states_ak_hi_v3.geojson"
-CSV_FALLBACK <- "fifty_states_permitting_application_data_-_prod.csv"
+CSV_FALLBACK <- "www/fifty_states_permitting_application_data.csv"
 
 # Brand palette + supporting tones (darker base)
 PAL <- list(
@@ -54,7 +54,7 @@ REFORM_EMOJI <- list(
   "Change Decision-Making Level"                      = "⚖️",
   "Set Projects up for Success"                       = "🚀",
   "Utilize Data and Technology"                       = "💻",
-  "Ensure Meaningful Benefits for Nature/Communities" = "🌳",
+  "Benefits for Nature/Communities" = "🌳",
   "Eliminate Permits/Permitting"                      = "✂️",
   "Building the Permitting Workforce"                 = "👷"
 )
@@ -68,7 +68,9 @@ PROJECT_EMOJI <- list(
   "Transportation"                          = "🚊",
   "Fossil Fuels"                            = "🛢️",
   "Ecological Restoration"                  = "🌿",
-  "Other"                                   = "•"
+  "Mining and Critical Minerals"                                  = "⛏️",
+  "Broadband"                               = "📶",
+  "Other"                                   = "📦"
 )
 
 emoji_for <- function(lookup, key, fallback = "•") {
@@ -79,14 +81,22 @@ emoji_for <- function(lookup, key, fallback = "•") {
 # ---- Data loading ----------------------------------------------------------
 
 load_data <- function() {
-  df <- tryCatch(
-    read_sheet(SHEET_URL, sheet = 1, col_types = "c"),
-    error = function(e) {
-      message("Google Sheets unreachable, using local CSV: ", e$message)
-      readr::read_csv(CSV_FALLBACK, show_col_types = FALSE,
-                      col_types = readr::cols(.default = "c"))
-    }
-  )
+  df <- NULL
+  for (attempt in 1:2) {
+    df <- tryCatch(
+      read_sheet(SHEET_URL, sheet = 1, col_types = "c"),
+      error = function(e) {
+        message(sprintf("Google Sheets attempt %d failed: %s", attempt, e$message))
+        NULL
+      }
+    )
+    if (!is.null(df)) break
+  }
+  if (is.null(df)) {
+    message("Falling back to local CSV: ", CSV_FALLBACK)
+    df <- readr::read_csv(CSV_FALLBACK, show_col_types = FALSE,
+                          col_types = readr::cols(.default = "c"))
+  }
   df |> mutate(across(everything(),
                       ~ ifelse(is.na(.) | trimws(.) == "", NA_character_, trimws(.))))
 }
@@ -115,6 +125,48 @@ reform_choices   <- sort(unique(long_reform$reform_category_single))
 project_choices  <- sort(unique(long_project$project_type_single))
 
 state_counts <- raw |> count(state, name = "n_tools")
+
+# Reform categories present per state (for tooltip emoji grid)
+state_reform_cats <- long_reform |>
+  group_by(state) |>
+  summarise(cats = list(unique(reform_category_single)), .groups = "drop")
+state_reform_lookup <- setNames(state_reform_cats$cats, state_reform_cats$state)
+
+# Ordered reform names matching sidebar (alphabetical = reform_choices order)
+REFORM_ORDERED <- sort(names(REFORM_EMOJI))
+
+make_state_tooltip <- function(state_nm, n_tools_val, has_data_flag) {
+  if (!has_data_flag) {
+    return(paste0(
+      "<div style='min-width:130px;'>",
+      "<strong>", state_nm, "</strong>",
+      "<br/><span style='font-size:11px;color:#aaa;'>No data yet</span>",
+      "</div>"
+    ))
+  }
+  present <- state_reform_lookup[[state_nm]]
+  if (is.null(present)) present <- character(0)
+  cells <- vapply(REFORM_ORDERED, function(cat) {
+    em  <- REFORM_EMOJI[[cat]]
+    sty <- if (cat %in% present) "font-size:16px;" else "font-size:16px;opacity:0.2;filter:grayscale(1);"
+    sprintf("<span style='%s' title='%s'>%s</span>", sty, cat, em)
+  }, character(1))
+  grid <- paste0(
+    "<div style='display:grid;grid-template-columns:repeat(3,1fr);",
+    "gap:4px;margin-top:6px;text-align:center;'>",
+    paste(cells, collapse = ""),
+    "</div>"
+  )
+  paste0(
+    "<div style='min-width:130px;'>",
+    "<strong>", state_nm, "</strong>",
+    "<br/><span style='font-size:11px;opacity:0.75;'>",
+    n_tools_val, " Action(s) or Tool(s)", ifelse(n_tools_val == 1),
+    "</span>",
+    grid,
+    "</div>"
+  )
+}
 
 # ---- Geojson ---------------------------------------------------------------
 
@@ -158,7 +210,7 @@ html, body { height: 100%; margin: 0; background: var(--bg);
 
 .app-shell {
   display: grid;
-  grid-template-columns: 336px 2.4fr 0.85fr;
+  grid-template-columns: 361px 2.4fr 0.85fr;
   grid-template-rows: minmax(0, 1fr) 260px;
   gap: 0;
   padding: 0;
@@ -168,15 +220,22 @@ html, body { height: 100%; margin: 0; background: var(--bg);
   transition: grid-template-columns 0.25s ease, grid-template-rows 0.25s ease;
 }
 
-/* Collapsed states — sidebar hidden, table hidden, or both */
+/* Collapsed states — sidebar hidden, detail hidden, table hidden, or any combo */
 .app-shell.sidebar-collapsed {
   grid-template-columns: 0 2.4fr 0.85fr;
+}
+.app-shell.detail-collapsed {
+  grid-template-columns: 361px 2.4fr 0;
+}
+.app-shell.sidebar-collapsed.detail-collapsed {
+  grid-template-columns: 0 2.4fr 0;
 }
 .app-shell.table-collapsed {
   grid-template-rows: minmax(0, 1fr) 0;
 }
 .app-shell.sidebar-collapsed .sidebar-card,
-.app-shell.table-collapsed  .table-card {
+.app-shell.detail-collapsed  .detail-card,
+.app-shell.table-collapsed   .table-card {
   visibility: hidden;
   pointer-events: none;
 }
@@ -197,6 +256,11 @@ html, body { height: 100%; margin: 0; background: var(--bg);
   grid-column: 3 / 4; grid-row: 1 / 2;
   display: flex; flex-direction: column;
   border-left: 1px solid var(--border);
+  overflow: hidden;
+}
+#detail_panel {
+  display: flex; flex-direction: column;
+  flex: 1; min-height: 0;
 }
 .table-card   {
   grid-column: 1 / 4; grid-row: 2 / 3;
@@ -248,6 +312,15 @@ html, body { height: 100%; margin: 0; background: var(--bg);
   background: var(--panel-2); color: var(--muted);
   padding: 1px 8px; border-radius: 999px; font-size: 10px; letter-spacing: 0.04em;
 }
+.collapsible-title { cursor: pointer; user-select: none; }
+.collapsible-title .title-left { display: flex; align-items: center; gap: 5px; }
+.collapse-arrow {
+  display: inline-block; font-size: 9px; color: #aaa;
+  transform: rotate(90deg); transition: transform 0.2s ease;
+}
+.collapse-arrow.open { transform: rotate(270deg); }
+.filter-group-body { overflow: hidden; transition: max-height 0.25s ease; max-height: 0; }
+.filter-group-body:not(.collapsed) { max-height: 2000px; }
 
 .sidebar-body .selectize-input,
 .sidebar-body .form-control {
@@ -261,6 +334,9 @@ html, body { height: 100%; margin: 0; background: var(--bg);
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
+}
+.opt-list.single-col {
+  grid-template-columns: 1fr;
 }
 .opt-row {
   display: flex; align-items: center; gap: 6px;
@@ -310,6 +386,17 @@ html, body { height: 100%; margin: 0; background: var(--bg);
   font-size: 12px; font-weight: 600;
   box-shadow: 0 2px 10px rgba(0,0,0,0.25);
 }
+.download-btn {
+  position: absolute; top: 14px; right: 14px; z-index: 500;
+  background: white; color: var(--brand-navy);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 5px 12px; font-size: 11px; font-weight: 600;
+  cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.10);
+  transition: all 0.15s ease;
+  display: inline-flex; align-items: center; gap: 6px;
+  user-select: none; text-decoration: none;
+}
+
 .map-legend {
   position: absolute; bottom: 14px; right: 14px; z-index: 500;
   background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(6px);
@@ -409,37 +496,14 @@ table.dataTable tbody tr:hover { background: #efece2 !important; }
 /* ---- Leaflet ---- */
 .leaflet-container { background: #e8eaf0 !important; font-family: inherit; }
 .leaflet-tooltip {
-  background: var(--brand-navy); color: white; border: none; border-radius: 8px;
-  padding: 4px 10px; font-size: 12px; font-weight: 500;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  background: var(--brand-navy); color: white; border: none; border-radius: 10px;
+  padding: 8px 12px; font-size: 12px; font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25); min-width: 130px;
 }
 .leaflet-tooltip:before { display: none; }
 
 /* ---- Intro modal ---- */
-/* Shiny's modal uses Bootstrap structure: .modal .modal-dialog .modal-content .
-   Our .intro-modal class sits on a wrapper div inside .modal-body, so we style
-   the surrounding Bootstrap chrome generically and the body via .intro-modal. */
-.modal-content {
-  border-radius: 20px; border: none;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
-  overflow: hidden;
-}
-.modal-header {
-  background: var(--brand-navy); color: white;
-  padding: 18px 24px; border: none;
-}
-.modal-header .modal-title, .modal-header .close, .modal-header button.btn-close {
-  color: white !important;
-}
-.modal-header .modal-title { font-weight: 800; font-size: 19px; letter-spacing: -0.01em; }
-.modal-header .close, .modal-header .btn-close { opacity: 0.8; filter: invert(1); }
-.modal-body { padding: 22px 24px; font-size: 14px; line-height: 1.6; color: var(--ink); }
-.modal-footer { border: none; padding: 0 24px 22px 24px; }
-.modal-footer .btn {
-  background: var(--brand-green); border-color: var(--brand-green);
-  border-radius: 10px; padding: 8px 20px; font-weight: 600; color: white;
-}
-.modal-footer .btn:hover { background: #448e1d; border-color: #448e1d; }
+.intro-modal p { margin: 0 0 10px 0; }
 
 .intro-modal p { margin: 0 0 10px 0; }
 .intro-how { display: grid; grid-template-columns: auto 1fr; gap: 10px 14px; margin-top: 12px; }
@@ -485,8 +549,15 @@ sidebar_ui <- function() {
     class = "card sidebar-card",
     div(
       class = "sidebar-header",
-      h1(class = "app-title", "50 States of Permitting"),
-      div(class = "app-subtitle", "Reforms · Projects · Tools")
+      div(
+        style = "display: flex; align-items: center; justify-content: space-between; gap: 4px;",
+        h1(class = "app-title", "50 States of Permitting"),
+        div(
+          style = "display: flex; align-items: center; gap: 8px;",
+          tags$img(src = "EPIC_logo_small.png", height = "35px", width = "35px"),
+          tags$img(src = "L4GG_logo_small.png", height = "35px", width = "23px")
+        )
+      )
     ),
     div(
       class = "sidebar-body",
@@ -497,22 +568,34 @@ sidebar_ui <- function() {
             span(class = "group-count", length(states_with_data))),
         selectizeInput("flt_state", label = NULL,
                        choices = c("All states" = "", states_with_data),
-                       selected = "", width = "100%",
+                       selected = "", width = "100%", multiple = TRUE,
                        options = list(placeholder = "All states"))
       ),
       div(
         class = "filter-group",
-        div(class = "filter-group-title",
-            span("🏛️ Reform Category"),
-            span(class = "group-count", length(reform_choices))),
-        uiOutput("reform_options")
+        div(
+          class = "filter-group-title collapsible-title",
+          onclick = "toggleFilterGroup(this)",
+          tags$span(class = "title-left",
+            span("🔧 Project Type"),
+            span(class = "collapse-arrow open", HTML("&#9654;"))
+          ),
+          span(class = "group-count", length(project_choices))
+        ),
+        div(class = "filter-group-body", uiOutput("project_options"))
       ),
       div(
         class = "filter-group",
-        div(class = "filter-group-title",
-            span("🔧 Project Type"),
-            span(class = "group-count", length(project_choices))),
-        uiOutput("project_options")
+        div(
+          class = "filter-group-title collapsible-title",
+          onclick = "toggleFilterGroup(this)",
+          tags$span(class = "title-left",
+            span("🏛️ Reform Category"),
+            span(class = "collapse-arrow open", HTML("&#9654;"))
+          ),
+          span(class = "group-count", length(reform_choices))
+        ),
+        div(class = "filter-group-body", uiOutput("reform_options"))
       ),
       actionButton("clear_filters", "Clear all filters", class = "clear-btn")
     )
@@ -526,6 +609,8 @@ map_ui <- function() {
       class = "map-wrap",
       leafletOutput("map", width = "100%", height = "100%"),
       uiOutput("selected_pill_ui"),
+      downloadButton("download_data", label = "Download data",
+                     class = "download-btn"),
       # Floating show/hide chips
       div(
         class = "panel-toggles",
@@ -539,7 +624,13 @@ map_ui <- function() {
           id = "toggle_table", class = "panel-toggle",
           onclick = "togglePanel('table');",
           span(class = "tog-icon", HTML("▦")),
-          span(id = "toggle_table_label", "Hide table")
+          span(id = "toggle_table_label", "Show table")
+        ),
+        tags$button(
+          id = "toggle_detail", class = "panel-toggle",
+          onclick = "togglePanel('detail');",
+          span(class = "tog-icon", HTML("▶")),
+          span(id = "toggle_detail_label", "Show detail")
         )
       ),
       div(
@@ -586,6 +677,23 @@ intro_modal <- function() {
         "streamline how permits get issued."
       ),
       tags$div(class = "detail-section-label",
+               style = "margin-top:18px;", "To learn more"),
+      tags$p(
+        "Check out EPIC's",
+        tags$a(href = "https://www.policyinnovation.org/permitting",
+               target = "_blank", "Permitting Innovation Hub")
+      ),
+      tags$p(
+        "See EPIC's ",
+        tags$a(href = "https://www.policyinnovation.org/insights/9-types",
+               target = "_blank", "Nine Types of Permitting Reform")
+      ),
+      
+      
+      
+
+      
+      tags$div(class = "detail-section-label",
                style = "margin-top:18px;", "How to use"),
       div(
         class = "intro-how",
@@ -606,14 +714,27 @@ intro_modal <- function() {
         div(class = "intro-how-text",
             tags$strong("Show or hide"),
             " the filter bar and table using the chips on the map.")
+      ),
+      
+      tags$div(
+        style = "margin-top:18px;",
+        tags$div(class = "detail-section-label", "Created By"),
+        tags$div(
+          style = "display: flex; align-items: center; gap: 10px;",
+          tags$img(src = "EPIC_logo_full.png", height = "60px", width = "200px"),
+          tags$div(
+            style = "padding: 5px; position: relative; top: -10px;",
+            tags$img(src = "L4GG_logo_full.png", height = "75px", width = "150px")
+          )
+        )
+      )
       )
     )
-  )
 }
 
 # ---- Root UI ---------------------------------------------------------------
 
-ui <- tagList(
+ui <- bootstrapPage(
   tags$head(
     tags$meta(charset = "utf-8"),
     tags$meta(name = "viewport", content = "width=device-width, initial-scale=1"),
@@ -621,14 +742,23 @@ ui <- tagList(
     tags$script(HTML("
       // Toggle sidebar / table visibility by flipping classes on .app-shell.
       // Re-invalidate leaflet size after the CSS transition so the map repaints.
+      window.toggleFilterGroup = function(titleEl) {
+        var body = titleEl.nextElementSibling;
+        var arrow = titleEl.querySelector('.collapse-arrow');
+        if (!body) return;
+        var isOpen = !body.classList.contains('collapsed');
+        body.classList.toggle('collapsed', isOpen);
+        if (arrow) arrow.classList.toggle('open', isOpen ? false : true);
+      };
       window.togglePanel = function(which) {
         var shell = document.getElementById('app-shell');
         if (!shell) return;
-        var cls = which === 'sidebar' ? 'sidebar-collapsed' : 'table-collapsed';
+        var clsMap = { sidebar: 'sidebar-collapsed', detail: 'detail-collapsed', table: 'table-collapsed' };
+        var labelMap = { sidebar: 'filters', detail: 'detail', table: 'table' };
+        var cls = clsMap[which];
         var collapsed = shell.classList.toggle(cls);
-        // Update button label
         var labelEl = document.getElementById('toggle_' + which + '_label');
-        if (labelEl) labelEl.textContent = (collapsed ? 'Show ' : 'Hide ') + (which === 'sidebar' ? 'filters' : 'table');
+        if (labelEl) labelEl.textContent = (collapsed ? 'Show ' : 'Hide ') + labelMap[which];
         // Resize leaflet after the transition ends
         setTimeout(function() {
           if (window.HTMLWidgets && HTMLWidgets.find) {
@@ -640,11 +770,28 @@ ui <- tagList(
           window.dispatchEvent(new Event('resize'));
         }, 280);
       };
+      // Called from server to reveal a panel (one-way: only shows, never hides)
+      Shiny.addCustomMessageHandler('show_panel', function(which) {
+        var shell = document.getElementById('app-shell');
+        if (!shell) return;
+        var clsMap   = { table: 'table-collapsed', detail: 'detail-collapsed' };
+        var labelMap = { table: 'table', detail: 'detail' };
+        shell.classList.remove(clsMap[which]);
+        var labelEl = document.getElementById('toggle_' + which + '_label');
+        if (labelEl) labelEl.textContent = 'Hide ' + labelMap[which];
+        setTimeout(function() {
+          if (window.HTMLWidgets && HTMLWidgets.find) {
+            var w = HTMLWidgets.find('#map');
+            if (w && w.getMap) { try { w.getMap().invalidateSize(); } catch(e) {} }
+          }
+          window.dispatchEvent(new Event('resize'));
+        }, 280);
+      });
     "))
   ),
   div(
     id = "app-shell",
-    class = "app-shell",
+    class = "app-shell table-collapsed detail-collapsed",
     sidebar_ui(),
     map_ui(),
     detail_ui(),
@@ -656,11 +803,11 @@ ui <- tagList(
 
 server <- function(input, output, session) {
 
-  # Intro modal on first load — deferred until after the initial flush so the
-  # client is definitely ready to render it.
-  session$onFlushed(function() {
+  # Show intro modal on first load
+  observe({
     showModal(intro_modal())
-  }, once = TRUE)
+  }) |> bindEvent(session$clientData$url_search, once = TRUE, ignoreInit = FALSE)
+
 
   # Null-coalesce helper
   `%||%` <- function(a, b) if (is.null(a) || length(a) == 0 || all(is.na(a))) b else a
@@ -669,10 +816,23 @@ server <- function(input, output, session) {
   sel_reforms  <- reactiveVal(character(0))
   sel_projects <- reactiveVal(character(0))
 
+  # --- Progressive reveal ---------------------------------------------------
+  # Show table when any filter or state is first used
+  observeEvent(list(input$flt_state, sel_reforms(), sel_projects()), {
+    if (isTruthy(input$flt_state) || length(sel_reforms()) > 0 || length(sel_projects()) > 0)
+      session$sendCustomMessage("show_panel", "table")
+  }, ignoreInit = TRUE)
+
+  # Show detail panel only when user physically clicks a table row
+  observeEvent(input$tbl_cell_clicked, {
+    if (length(input$tbl_cell_clicked) > 0)
+      session$sendCustomMessage("show_panel", "detail")
+  }, ignoreInit = TRUE)
+
   # --- Filtered dataset -----------------------------------------------------
   filtered <- reactive({
     df <- raw
-    if (isTruthy(input$flt_state)) df <- df |> filter(state == input$flt_state)
+    if (isTruthy(input$flt_state)) df <- df |> filter(state %in% input$flt_state)
     if (length(sel_reforms()) > 0) {
       names_match <- long_reform |>
         filter(reform_category_single %in% sel_reforms()) |>
@@ -692,7 +852,7 @@ server <- function(input, output, session) {
   # Reform counts = how many rows per reform, given state + project filters
   rows_under_state_and_projects <- reactive({
     df <- raw
-    if (isTruthy(input$flt_state)) df <- df |> filter(state == input$flt_state)
+    if (isTruthy(input$flt_state)) df <- df |> filter(state %in% input$flt_state)
     if (length(sel_projects()) > 0) {
       names_match <- long_project |>
         filter(project_type_single %in% sel_projects()) |>
@@ -703,7 +863,7 @@ server <- function(input, output, session) {
   })
   rows_under_state_and_reforms <- reactive({
     df <- raw
-    if (isTruthy(input$flt_state)) df <- df |> filter(state == input$flt_state)
+    if (isTruthy(input$flt_state)) df <- df |> filter(state %in% input$flt_state)
     if (length(sel_reforms()) > 0) {
       names_match <- long_reform |>
         filter(reform_category_single %in% sel_reforms()) |>
@@ -728,7 +888,7 @@ server <- function(input, output, session) {
 
   # --- Pill-style filter group renderer ------------------------------------
   render_pill_options <- function(choices, counts_df, key_col, sel,
-                                  input_prefix, emoji_lookup) {
+                                  input_prefix, emoji_lookup, extra_class = NULL) {
     # Build a safe lookup: named numeric vector; missing keys -> 0 via match()
     if (nrow(counts_df) > 0) {
       keys <- counts_df[[key_col]]
@@ -743,7 +903,7 @@ server <- function(input, output, session) {
     }
 
     div(
-      class = "opt-list",
+      class = paste(c("opt-list", extra_class), collapse = " "),
       lapply(choices, function(opt) {
         n <- safe_count(opt)
         is_selected <- opt %in% sel
@@ -769,11 +929,11 @@ server <- function(input, output, session) {
 
   output$reform_options <- renderUI({
     render_pill_options(reform_choices, reform_counts(), "reform_category_single",
-                        sel_reforms(), "reform", REFORM_EMOJI)
+                        sel_reforms(), "reform", REFORM_EMOJI, extra_class = "single-col")
   })
   output$project_options <- renderUI({
     render_pill_options(project_choices, project_counts(), "project_type_single",
-                        sel_projects(), "project", PROJECT_EMOJI)
+                        sel_projects(), "project", PROJECT_EMOJI, extra_class = "single-col")
   })
 
   # Toggles
@@ -809,12 +969,8 @@ server <- function(input, output, session) {
           fillOpacity = ~ifelse(has_data, 0.65, 0.70),
           color = ~ifelse(has_data, "#ffffff", PAL$no_data_line),
           weight = 1.2, smoothFactor = 0.3,
-          label = ~lapply(
-            paste0("<strong>", state_name, "</strong><br/>",
-                   ifelse(has_data,
-                          paste0(n_tools, " action tool", ifelse(n_tools == 1, "", "s")),
-                          "No data yet")),
-            HTML),
+          label = lapply(seq_len(nrow(states_sf)), function(i)
+            HTML(make_state_tooltip(states_sf$state_name[i], states_sf$n_tools[i], states_sf$has_data[i]))),
           highlightOptions = highlightOptions(
             weight = 2.5, color = PAL$navy, fillOpacity = 0.85, bringToFront = TRUE
           )
@@ -829,31 +985,30 @@ server <- function(input, output, session) {
 
     df <- filtered()
     counts <- df |> count(state, name = "n_filt")
-    sel_state <- if (isTruthy(input$flt_state)) input$flt_state else NA_character_
+    sel_state <- if (isTruthy(input$flt_state)) input$flt_state else character(0)
 
     sf_upd <- states_sf |>
       mutate(
-        n_filt = counts$n_filt[match(state_name, counts$state)],
-        n_filt = ifelse(is.na(n_filt), 0L, n_filt)
+        n_filt   = counts$n_filt[match(state_name, counts$state)],
+        n_filt   = ifelse(is.na(n_filt), 0L, n_filt),
+        is_sel   = state_name %in% sel_state
       )
 
     fill_col <- ifelse(
-      sf_upd$state_name == sel_state & !is.na(sel_state), PAL$green,
+      sf_upd$is_sel, PAL$green,
       ifelse(sf_upd$n_filt > 0, PAL$blue,
              ifelse(sf_upd$has_data, "#6b7ba6", PAL$no_data))
     )
     fill_op <- ifelse(
-      sf_upd$state_name == sel_state & !is.na(sel_state), 0.9,
+      sf_upd$is_sel, 0.9,
       ifelse(sf_upd$n_filt > 0, 0.7,
              ifelse(sf_upd$has_data, 0.5, 0.7))
     )
     border_col <- ifelse(
-      sf_upd$state_name == sel_state & !is.na(sel_state), PAL$navy,
+      sf_upd$is_sel, PAL$navy,
       ifelse(sf_upd$has_data, "#ffffff", PAL$no_data_line)
     )
-    border_wt <- ifelse(
-      sf_upd$state_name == sel_state & !is.na(sel_state), 2.5, 1.2
-    )
+    border_wt <- ifelse(sf_upd$is_sel, 2.5, 1.2)
 
     leafletProxy("map") |>
       removeShape(layerId = states_sf$state_name) |>
@@ -861,13 +1016,8 @@ server <- function(input, output, session) {
         data = sf_upd, layerId = ~state_name,
         fillColor = fill_col, fillOpacity = fill_op,
         color = border_col, weight = border_wt, smoothFactor = 0.3,
-        label = ~lapply(
-          paste0("<strong>", state_name, "</strong><br/>",
-                 ifelse(has_data,
-                        paste0(n_filt, " of ", n_tools, " action tool",
-                               ifelse(n_tools == 1, "", "s"), " shown"),
-                        "No data yet")),
-          HTML),
+        label = lapply(seq_len(nrow(sf_upd)), function(i)
+          HTML(make_state_tooltip(sf_upd$state_name[i], sf_upd$n_tools[i], sf_upd$has_data[i]))),
         highlightOptions = highlightOptions(
           weight = 2.5, color = PAL$navy, fillOpacity = 0.9, bringToFront = TRUE
         )
@@ -879,24 +1029,32 @@ server <- function(input, output, session) {
     clicked <- input$map_shape_click$id
     if (is.null(clicked)) return()
     if (!(clicked %in% states_with_data)) return()
-    if (isTruthy(input$flt_state) && input$flt_state == clicked) {
-      updateSelectizeInput(session, "flt_state", selected = "")
-    } else {
-      updateSelectizeInput(session, "flt_state", selected = clicked)
-    }
+    current <- if (isTruthy(input$flt_state)) input$flt_state else character(0)
+    new_sel <- if (clicked %in% current) setdiff(current, clicked) else union(current, clicked)
+    updateSelectizeInput(session, "flt_state", selected = new_sel)
   })
 
   output$selected_pill_ui <- renderUI({
     if (isTruthy(input$flt_state)) {
-      div(class = "selected-pill",
-          paste0("📍 ", input$flt_state, " · click state again to clear"))
+      label <- if (length(input$flt_state) == 1) {
+        paste0("📍 ", input$flt_state, " · click to deselect")
+      } else {
+        paste0("📍 ", length(input$flt_state), " states selected · click a state to deselect")
+      }
+      div(class = "selected-pill", label)
     }
   })
+
+  # --- Download -------------------------------------------------------------
+  output$download_data <- downloadHandler(
+    filename = function() "50-states-permitting.csv",
+    content  = function(file) write.csv(raw, file, row.names = FALSE)
+  )
 
   # --- Table ----------------------------------------------------------------
   output$table_header <- renderUI({
     n <- nrow(filtered())
-    tags$h3(paste0("Action Tools · ", n))
+    tags$h3(paste0("State Permitting Actions and Tools · ", n))
   })
 
   output$tbl <- renderDT({
@@ -1034,7 +1192,7 @@ server <- function(input, output, session) {
       div(class = "detail-body",
 
           if (!is.na(row$description))
-            render_section("Description", div(class = "detail-desc", row$description)),
+            render_section("Description", div(class = "detail-desc", HTML(row$description))),
 
           render_section("Implementation Status",
                          span(class = paste("impl-badge", impl_class_for(impl)), impl_txt)),
@@ -1042,7 +1200,7 @@ server <- function(input, output, session) {
           if (length(urls) > 0)
             render_section("Relevant Links",
                            tagList(lapply(urls, function(u)
-                             tags$a(href = u, target = "_blank",
+                             tags$a(href = HTML(u), target = "_blank",
                                     class = "detail-link", u)))),
 
           render_section("Reform Categories",
@@ -1062,9 +1220,9 @@ server <- function(input, output, session) {
                   div(class = "detail-section-label", "Effective Date"),
                   div(class = "meta-item-value", row$effective_date %||% "—"))),
 
-          if (!is.na(row$executive_orders_leg))
+          if (!is.na(row$EO_Leg_ID))
             render_section("Executive Orders / Legislation",
-                           div(class = "meta-item-value", row$executive_orders_leg))
+                           div(class = "meta-item-value", row$EO_Leg_ID))
       )
     )
   })
