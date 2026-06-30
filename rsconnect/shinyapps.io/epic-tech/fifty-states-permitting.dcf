@@ -5,7 +5,7 @@ account: epic-tech
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 17153262
-bundleId: 12201367
+bundleId: 12201403
 url: https://epic-tech.shinyapps.io/fifty-states-permitting/
 version: 1
 asMultiple: FALSE

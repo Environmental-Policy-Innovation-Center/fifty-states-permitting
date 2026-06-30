@@ -161,7 +161,7 @@ make_state_tooltip <- function(state_nm, n_tools_val, has_data_flag) {
     "<div style='min-width:130px;'>",
     "<strong>", state_nm, "</strong>",
     "<br/><span style='font-size:11px;opacity:0.75;'>",
-    n_tools_val, " Action(s) or Tool(s)", ifelse(n_tools_val == 1),
+    n_tools_val, ifelse(n_tools_val == 1, " Action or Tool", " Actions or Tools"),
     "</span>",
     grid,
     "</div>"
