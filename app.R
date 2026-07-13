@@ -518,18 +518,39 @@ table.dataTable tbody tr:hover { background: #efece2 !important; }
 ::-webkit-scrollbar-thumb:hover { background: #a8a290; }
 
 /* Responsive */
+   
 @media (max-width: 1100px) {
-  .app-shell {
+  .app-shell,
+  .app-shell.sidebar-collapsed,
+  .app-shell.detail-collapsed,
+  .app-shell.sidebar-collapsed.detail-collapsed {
     grid-template-columns: 260px 1fr;
+  }
+  .app-shell,
+  .app-shell.table-collapsed {
     grid-template-rows: auto auto auto;
   }
   .sidebar-card { grid-column: 1; grid-row: 1 / 3; }
   .map-card     { grid-column: 2; grid-row: 1; min-height: 50vh; }
   .detail-card  { grid-column: 2; grid-row: 2; min-height: 40vh; max-height: none; }
   .table-card   { grid-column: 1 / 3; grid-row: 3; }
+
+  .app-shell.sidebar-collapsed .sidebar-card,
+  .app-shell.detail-collapsed  .detail-card,
+  .app-shell.table-collapsed   .table-card {
+    display: none;
+  }
 }
 @media (max-width: 700px) {
-  .app-shell { grid-template-columns: 1fr; height: auto; }
+  .app-shell,
+  .app-shell.sidebar-collapsed,
+  .app-shell.detail-collapsed,
+  .app-shell.sidebar-collapsed.detail-collapsed,
+  .app-shell.table-collapsed {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    height: auto;
+  }
   .sidebar-card, .map-card, .detail-card, .table-card { grid-column: 1; grid-row: auto; }
   .map-card { height: 50vh; }
   .opt-list { grid-template-columns: 1fr; }
