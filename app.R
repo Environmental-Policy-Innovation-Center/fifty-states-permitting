@@ -18,6 +18,7 @@ library(DT)
 library(googlesheets4)
 library(purrr)
 library(htmltools)
+library(commonmark)
 
 # ---- Configuration ---------------------------------------------------------
 
@@ -104,6 +105,35 @@ load_data <- function() {
 split_multi <- function(x) {
   if (is.na(x) || !nzchar(x)) return(character(0))
   str_trim(str_split(x, ",")[[1]])
+}
+
+# ---- Markdown rendering -----------------------------------------------------
+# Spreadsheet text columns (bolding, bullet lists, links) are authored in
+# markdown. These helpers turn that into real HTML instead of showing the
+# raw ** and - characters.
+
+# Block-level: keeps paragraphs/lists as-is. Use for long-form prose fields.
+md_block <- function(x) {
+  if (is.na(x) || !nzchar(x)) return(NULL)
+  HTML(commonmark::markdown_html(x, hardbreaks = TRUE))
+}
+
+# Inline: strips the wrapping <p> commonmark always adds, so short fields
+# (chips, table cells, single-line meta values) stay inline instead of
+# becoming block elements.
+md_to_inline_html <- function(x) {
+  if (is.na(x) || !nzchar(x)) return("")
+  html <- commonmark::markdown_html(x, hardbreaks = TRUE)
+  html <- sub("^<p>", "", html)
+  html <- sub("</p>\\n?$", "", html)
+  html
+}
+md_inline <- function(x) HTML(md_to_inline_html(x))
+
+# For fields displayed with a "—" fallback when empty.
+md_or_dash <- function(x) {
+  if (is.null(x) || length(x) == 0 || all(is.na(x)) || !nzchar(x)) return("—")
+  md_inline(x)
 }
 
 # ---- Prep ------------------------------------------------------------------
@@ -445,6 +475,11 @@ html, body { height: 100%; margin: 0; background: var(--bg);
   text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px;
 }
 .detail-desc { font-size: 13px; line-height: 1.5; color: var(--ink); }
+.detail-desc p { margin: 0 0 8px 0; }
+.detail-desc p:last-child { margin-bottom: 0; }
+.detail-desc ul, .detail-desc ol { margin: 4px 0 8px 22px; padding: 0; }
+.detail-desc li { margin-bottom: 4px; }
+.detail-desc a { color: var(--brand-blue); }
 
 .impl-badge {
   display: inline-block; padding: 4px 12px; border-radius: 999px;
@@ -809,9 +844,6 @@ server <- function(input, output, session) {
   }) |> bindEvent(session$clientData$url_search, once = TRUE, ignoreInit = FALSE)
 
 
-  # Null-coalesce helper
-  `%||%` <- function(a, b) if (is.null(a) || length(a) == 0 || all(is.na(a))) b else a
-
   # Selections for the pill-style filter groups
   sel_reforms  <- reactiveVal(character(0))
   sel_projects <- reactiveVal(character(0))
@@ -1066,12 +1098,13 @@ server <- function(input, output, session) {
         `Project Type`    = project_type,
         `Type`            = action_tool_type,
         Implementation    = implementation
-      )
+      ) |>
+      mutate(across(everything(), ~ map_chr(.x, md_to_inline_html)))
 
     datatable(
       df,
       selection = list(mode = "single", selected = if (nrow(df)) 1 else NULL),
-      rownames = FALSE, escape = TRUE,
+      rownames = FALSE, escape = FALSE,
       options = list(
         dom = "tip", pageLength = 6, scrollX = TRUE,
         columnDefs = list(
@@ -1129,7 +1162,7 @@ server <- function(input, output, session) {
     if (length(vals) == 0) return(span(style = "color: var(--muted); font-size: 13px;", "—"))
     tagList(lapply(vals, function(v) {
       prefix <- if (!is.null(emoji_lookup)) paste0(emoji_for(emoji_lookup, v), " ") else ""
-      span(class = class, paste0(prefix, v))
+      span(class = class, HTML(paste0(prefix, md_to_inline_html(v))))
     }))
   }
 
@@ -1192,7 +1225,7 @@ server <- function(input, output, session) {
       div(class = "detail-body",
 
           if (!is.na(row$description))
-            render_section("Description", div(class = "detail-desc", HTML(row$description))),
+            render_section("Description", div(class = "detail-desc", md_block(row$description))),
 
           render_section("Implementation Status",
                          span(class = paste("impl-badge", impl_class_for(impl)), impl_txt)),
@@ -1215,14 +1248,14 @@ server <- function(input, output, session) {
           div(class = "meta-grid",
               div(class = "detail-section",
                   div(class = "detail-section-label", "Announced / Passed"),
-                  div(class = "meta-item-value", row$data_announced_passed %||% "—")),
+                  div(class = "meta-item-value", md_or_dash(row$data_announced_passed))),
               div(class = "detail-section",
                   div(class = "detail-section-label", "Effective Date"),
-                  div(class = "meta-item-value", row$effective_date %||% "—"))),
+                  div(class = "meta-item-value", md_or_dash(row$effective_date)))),
 
           if (!is.na(row$EO_Leg_ID))
             render_section("Executive Orders / Legislation",
-                           div(class = "meta-item-value", row$EO_Leg_ID))
+                           div(class = "meta-item-value", md_inline(row$EO_Leg_ID)))
       )
     )
   })
