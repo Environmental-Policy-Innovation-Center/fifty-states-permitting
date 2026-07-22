@@ -55,7 +55,7 @@ REFORM_EMOJI <- list(
   "Change Decision-Making Level"                      = "⚖️",
   "Set Projects up for Success"                       = "🚀",
   "Utilize Data and Technology"                       = "💻",
-  "Benefits for Nature/Communities" = "🌳",
+  "Benefits for Nature/Communities"                   = "🌳",
   "Eliminate Permits/Permitting"                      = "✂️",
   "Building the Permitting Workforce"                 = "👷"
 )
@@ -69,7 +69,7 @@ PROJECT_EMOJI <- list(
   "Transportation"                          = "🚊",
   "Fossil Fuels"                            = "🛢️",
   "Ecological Restoration"                  = "🌿",
-  "Mining and Critical Minerals"                                  = "⛏️",
+  "Mining and Critical Minerals"            = "⛏️",
   "Broadband"                               = "📶",
   "Other"                                   = "📦"
 )
@@ -732,6 +732,9 @@ intro_modal <- function() {
         "type, and drill into individual action tools states are using to ",
         "streamline how permits get issued."
       ),
+      tags$p("All reforms in this tool represent what states have pursued 
+             between roughly 2022 and July 2026."),
+      
       tags$div(class = "detail-section-label",
                style = "margin-top:18px;", "To learn more"),
       tags$p(
@@ -749,7 +752,7 @@ intro_modal <- function() {
       
 
       
-      tags$div(class = "detail-section-label",
+      div(class = "detail-section-label",
                style = "margin-top:18px;", "How to use"),
       div(
         class = "intro-how",
