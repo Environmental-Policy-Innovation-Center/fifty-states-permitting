@@ -329,6 +329,12 @@ html, body { height: 100%; margin: 0; background: var(--bg);
   font-size: 11px; color: var(--muted); text-transform: uppercase;
   letter-spacing: 0.1em; margin-top: 4px; font-weight: 600;
 }
+.btn-show-intro {
+  margin-top: 10px; font-size: 11px; font-weight: 600; color: var(--brand-navy);
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px;
+  padding: 4px 12px;
+}
+.btn-show-intro:hover { background: var(--brand-navy); color: white; border-color: var(--brand-navy); }
 .sidebar-body {
   padding: 16px 18px 18px 18px; overflow-y: auto; flex: 1; min-height: 0;
 }
@@ -522,6 +528,9 @@ table.dataTable thead th {
   font-size: 11px !important; text-transform: uppercase; letter-spacing: 0.06em;
 }
 table.dataTable tbody tr { cursor: pointer; }
+table.dataTable td.dt-wrap {
+  white-space: normal !important; word-break: break-word; vertical-align: top;
+}
 table.dataTable tbody tr.selected,
 table.dataTable tbody tr.selected td {
   background: #e0e9f5 !important; color: var(--brand-navy) !important;
@@ -613,7 +622,9 @@ sidebar_ui <- function() {
           tags$img(src = "EPIC_logo_small.png", height = "35px", width = "35px"),
           tags$img(src = "L4GG_logo_small.png", height = "35px", width = "23px")
         )
-      )
+      ),
+      actionButton("btn_show_intro", "About this tool", icon = icon("circle-info"),
+                   class = "btn-show-intro")
     ),
     div(
       class = "sidebar-body",
@@ -729,7 +740,7 @@ intro_modal <- function() {
       tags$p(
         "An interactive explorer for state-level permitting reforms across ",
         "the United States. Browse reform categories, filter by project ",
-        "type, and drill into individual action tools states are using to ",
+        "type, and drill into individual actions and tools states are using to ",
         "streamline how permits get issued."
       ),
       tags$p("All reforms in this tool represent what states have pursued 
@@ -866,6 +877,11 @@ server <- function(input, output, session) {
   observe({
     showModal(intro_modal())
   }) |> bindEvent(session$clientData$url_search, once = TRUE, ignoreInit = FALSE)
+
+  # Reopen intro modal from sidebar button
+  observeEvent(input$btn_show_intro, {
+    showModal(intro_modal())
+  })
 
 
   # Selections for the pill-style filter groups
@@ -1116,7 +1132,7 @@ server <- function(input, output, session) {
   output$tbl <- renderDT({
     df <- filtered() |>
       select(
-        `Action Tool`     = action_tool_name,
+        `Action and Tool`     = action_tool_name,
         State             = state,
         `Reform Category` = reform_category,
         `Project Type`    = project_type,
@@ -1132,8 +1148,9 @@ server <- function(input, output, session) {
       options = list(
         dom = "tip", pageLength = 6, scrollX = TRUE,
         columnDefs = list(
-          list(targets = 0, width = "240px"),
-          list(targets = "_all", className = "dt-left")
+          list(targets = "_all", className = "dt-left"),
+          list(targets = 0, width = "240px", className = "dt-left dt-wrap"),
+          list(targets = 2, width = "200px", className = "dt-left dt-wrap")
         ),
         language = list(
           emptyTable = "No action tools match the current filters.",
@@ -1141,7 +1158,7 @@ server <- function(input, output, session) {
           infoEmpty = "", infoFiltered = ""
         )
       ),
-      class = "display nowrap compact"
+      class = "display compact"
     )
   }, server = FALSE)
 
