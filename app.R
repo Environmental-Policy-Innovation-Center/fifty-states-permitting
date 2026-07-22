@@ -521,7 +521,8 @@ html, body { height: 100%; margin: 0; background: var(--bg);
   margin: 0 0 10px 0; font-size: 13px; color: var(--brand-navy);
   font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
 }
-.table-card .dataTables_wrapper { flex: 1; overflow: auto; font-size: 13px; }
+.table-card #tbl { flex: 1; overflow: auto; min-height: 0; }
+.table-card .dataTables_wrapper { font-size: 13px; }
 table.dataTable thead th {
   background: var(--panel-2) !important; color: var(--brand-navy) !important;
   font-weight: 700 !important; border-bottom: 2px solid var(--border) !important;
@@ -598,6 +599,7 @@ table.dataTable tbody tr:hover { background: #efece2 !important; }
   .sidebar-card, .map-card, .detail-card, .table-card { grid-column: 1; grid-row: auto; }
   .map-card { height: 50vh; }
   .opt-list { grid-template-columns: 1fr; }
+  
 }
 "
 
@@ -766,7 +768,7 @@ intro_modal <- function() {
       div(class = "detail-section-label",
                style = "margin-top:18px;", "How to use"),
       div(
-        class = "intro-how",
+        class = "intro-how", style = "margin-bottom:15px",
         span(class = "intro-how-emoji", "🗺️"),
         div(class = "intro-how-text",
             tags$strong("Click a state"), " on the map to focus on its reforms. Click again to clear."),
@@ -784,8 +786,11 @@ intro_modal <- function() {
         div(class = "intro-how-text",
             tags$strong("Show or hide"),
             " the filter bar and table using the chips on the map.")
-      ),
-      
+        ),
+
+      div("Download the data ",
+        downloadLink("download_data", label = "here")),
+
       tags$div(
         style = "margin-top:18px;",
         tags$div(class = "detail-section-label", "Created By"),
