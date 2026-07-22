@@ -55,7 +55,7 @@ REFORM_EMOJI <- list(
   "Change Decision-Making Level"                      = "⚖️",
   "Set Projects up for Success"                       = "🚀",
   "Utilize Data and Technology"                       = "💻",
-  "Benefits for Nature/Communities" = "🌳",
+  "Benefits for Nature/Communities"                   = "🌳",
   "Eliminate Permits/Permitting"                      = "✂️",
   "Building the Permitting Workforce"                 = "👷"
 )
@@ -69,7 +69,7 @@ PROJECT_EMOJI <- list(
   "Transportation"                          = "🚊",
   "Fossil Fuels"                            = "🛢️",
   "Ecological Restoration"                  = "🌿",
-  "Mining and Critical Minerals"                                  = "⛏️",
+  "Mining and Critical Minerals"            = "⛏️",
   "Broadband"                               = "📶",
   "Other"                                   = "📦"
 )
@@ -329,6 +329,12 @@ html, body { height: 100%; margin: 0; background: var(--bg);
   font-size: 11px; color: var(--muted); text-transform: uppercase;
   letter-spacing: 0.1em; margin-top: 4px; font-weight: 600;
 }
+.btn-show-intro {
+  margin-top: 10px; font-size: 11px; font-weight: 600; color: var(--brand-navy);
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px;
+  padding: 4px 12px;
+}
+.btn-show-intro:hover { background: var(--brand-navy); color: white; border-color: var(--brand-navy); }
 .sidebar-body {
   padding: 16px 18px 18px 18px; overflow-y: auto; flex: 1; min-height: 0;
 }
@@ -515,13 +521,17 @@ html, body { height: 100%; margin: 0; background: var(--bg);
   margin: 0 0 10px 0; font-size: 13px; color: var(--brand-navy);
   font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
 }
-.table-card .dataTables_wrapper { flex: 1; overflow: auto; font-size: 13px; }
+.table-card #tbl { flex: 1; overflow: auto; min-height: 0; }
+.table-card .dataTables_wrapper { font-size: 13px; }
 table.dataTable thead th {
   background: var(--panel-2) !important; color: var(--brand-navy) !important;
   font-weight: 700 !important; border-bottom: 2px solid var(--border) !important;
   font-size: 11px !important; text-transform: uppercase; letter-spacing: 0.06em;
 }
 table.dataTable tbody tr { cursor: pointer; }
+table.dataTable td.dt-wrap {
+  white-space: normal !important; word-break: break-word; vertical-align: top;
+}
 table.dataTable tbody tr.selected,
 table.dataTable tbody tr.selected td {
   background: #e0e9f5 !important; color: var(--brand-navy) !important;
@@ -589,6 +599,7 @@ table.dataTable tbody tr:hover { background: #efece2 !important; }
   .sidebar-card, .map-card, .detail-card, .table-card { grid-column: 1; grid-row: auto; }
   .map-card { height: 50vh; }
   .opt-list { grid-template-columns: 1fr; }
+  
 }
 "
 
@@ -613,7 +624,9 @@ sidebar_ui <- function() {
           tags$img(src = "EPIC_logo_small.png", height = "35px", width = "35px"),
           tags$img(src = "L4GG_logo_small.png", height = "35px", width = "23px")
         )
-      )
+      ),
+      actionButton("btn_show_intro", "About this tool", icon = icon("circle-info"),
+                   class = "btn-show-intro")
     ),
     div(
       class = "sidebar-body",
@@ -729,9 +742,12 @@ intro_modal <- function() {
       tags$p(
         "An interactive explorer for state-level permitting reforms across ",
         "the United States. Browse reform categories, filter by project ",
-        "type, and drill into individual action tools states are using to ",
+        "type, and drill into individual actions and tools states are using to ",
         "streamline how permits get issued."
       ),
+      tags$p("All reforms in this tool represent what states have pursued 
+             between roughly 2022 and July 2026."),
+      
       tags$div(class = "detail-section-label",
                style = "margin-top:18px;", "To learn more"),
       tags$p(
@@ -749,10 +765,10 @@ intro_modal <- function() {
       
 
       
-      tags$div(class = "detail-section-label",
+      div(class = "detail-section-label",
                style = "margin-top:18px;", "How to use"),
       div(
-        class = "intro-how",
+        class = "intro-how", style = "margin-bottom:15px",
         span(class = "intro-how-emoji", "🗺️"),
         div(class = "intro-how-text",
             tags$strong("Click a state"), " on the map to focus on its reforms. Click again to clear."),
@@ -770,8 +786,11 @@ intro_modal <- function() {
         div(class = "intro-how-text",
             tags$strong("Show or hide"),
             " the filter bar and table using the chips on the map.")
-      ),
-      
+        ),
+
+      div("Download the data ",
+        downloadLink("download_data", label = "here")),
+
       tags$div(
         style = "margin-top:18px;",
         tags$div(class = "detail-section-label", "Created By"),
@@ -863,6 +882,11 @@ server <- function(input, output, session) {
   observe({
     showModal(intro_modal())
   }) |> bindEvent(session$clientData$url_search, once = TRUE, ignoreInit = FALSE)
+
+  # Reopen intro modal from sidebar button
+  observeEvent(input$btn_show_intro, {
+    showModal(intro_modal())
+  })
 
 
   # Selections for the pill-style filter groups
@@ -1113,7 +1137,7 @@ server <- function(input, output, session) {
   output$tbl <- renderDT({
     df <- filtered() |>
       select(
-        `Action Tool`     = action_tool_name,
+        `Action and Tool`     = action_tool_name,
         State             = state,
         `Reform Category` = reform_category,
         `Project Type`    = project_type,
@@ -1129,8 +1153,9 @@ server <- function(input, output, session) {
       options = list(
         dom = "tip", pageLength = 6, scrollX = TRUE,
         columnDefs = list(
-          list(targets = 0, width = "240px"),
-          list(targets = "_all", className = "dt-left")
+          list(targets = "_all", className = "dt-left"),
+          list(targets = 0, width = "240px", className = "dt-left dt-wrap"),
+          list(targets = 2, width = "200px", className = "dt-left dt-wrap")
         ),
         language = list(
           emptyTable = "No action tools match the current filters.",
@@ -1138,7 +1163,7 @@ server <- function(input, output, session) {
           infoEmpty = "", infoFiltered = ""
         )
       ),
-      class = "display nowrap compact"
+      class = "display compact"
     )
   }, server = FALSE)
 
