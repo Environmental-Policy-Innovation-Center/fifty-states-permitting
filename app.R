@@ -798,7 +798,7 @@ intro_modal <- function() {
 
       div("Download the data ",
         downloadLink("download_data", label = "here")),
-      div("Read our methodology", actionLink("btn_show_method", "here")),
+      div("Learn more about our methodology", actionLink("btn_show_method", "here")),
       
   
       tags$div(
