@@ -726,8 +726,12 @@ table_ui <- function() {
   div(
     class = "card table-card",
     uiOutput("table_header"),
-    DTOutput("tbl")
+    DTOutput("tbl"),
+    div(tags$a(href="https://www.policyinnovation.org/", " EPIC's Website", target = "_blank"),
+        tags$a(href="https://www.lawyersforgoodgovernment.org/", "L4GG's Website"
+               , style="padding-left: 20px", target = "_blank"))
   )
+
 }
 
 intro_modal <- function() {
@@ -1151,7 +1155,7 @@ server <- function(input, output, session) {
       selection = list(mode = "single", selected = if (nrow(df)) 1 else NULL),
       rownames = FALSE, escape = FALSE,
       options = list(
-        dom = "tip", pageLength = 6, scrollX = TRUE,
+        dom = "tip", pageLength = 6, scrollX = TRUE, 
         columnDefs = list(
           list(targets = "_all", className = "dt-left"),
           list(targets = 0, width = "240px", className = "dt-left dt-wrap"),
