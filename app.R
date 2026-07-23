@@ -220,6 +220,7 @@ if (!is.null(states_sf)) {
 # Sidebar is top-only. Table spans all columns at the bottom.
 
 app_css_template <- "
+
 :root {
   --brand-green: {green};
   --brand-navy:  {navy};
@@ -621,12 +622,15 @@ sidebar_ui <- function() {
         h1(class = "app-title", "50 States of Permitting"),
         div(
           style = "display: flex; align-items: center; gap: 8px;",
-          tags$img(src = "EPIC_logo_small.png", height = "35px", width = "35px"),
-          tags$img(src = "L4GG_logo_small.png", height = "35px", width = "23px")
+          tags$a(href="https://www.policyinnovation.org/", target="_blank",tags$img(src = "EPIC_logo_small.png", height = "35px", width = "35px")),
+          tags$a(href="https://www.lawyersforgoodgovernment.org/", target="_blank",tags$img(src = "L4GG_logo_small.png", height = "35px", width = "23px"))
         )
       ),
       actionButton("btn_show_intro", "About this tool", icon = icon("circle-info"),
+                   class = "btn-show-intro"),
+      actionButton("btn_show_method", "Our methodology", icon = icon("clipboard"),
                    class = "btn-show-intro")
+      
     ),
     div(
       class = "sidebar-body",
@@ -794,21 +798,48 @@ intro_modal <- function() {
 
       div("Download the data ",
         downloadLink("download_data", label = "here")),
-
+      div("Read our methodology", actionLink("btn_show_method", "here")),
+      
+  
       tags$div(
         style = "margin-top:18px;",
         tags$div(class = "detail-section-label", "Created By"),
         tags$div(
           style = "display: flex; align-items: center; gap: 10px;",
-          tags$img(src = "EPIC_logo_full.png", height = "60px", width = "200px"),
+          tags$a(href="https://www.policyinnovation.org/", target="_blank",tags$img(src = "EPIC_logo_full.png", height = "60px", width = "200px")),
           tags$div(
             style = "padding: 5px; position: relative; top: -10px;",
-            tags$img(src = "L4GG_logo_full.png", height = "75px", width = "150px")
+            tags$a(href="https://www.lawyersforgoodgovernment.org/", target="_blank",tags$img(src = "L4GG_logo_full.png", height = "75px", width = "150px"))
           )
         )
       )
       )
     )
+}
+
+method_modal <- function(){
+  modalDialog(
+  title = "Our Methodology",
+  easyClose = TRUE,
+  fade = TRUE,
+  size = "m",
+  footer = modalButton("Close this Window"),
+  
+  tags$div(class = "intro-modal",
+           tags$p("This is a collaboration between the Environmental Policy Innovation Center (EPIC) and Lawers For Good Governance (L4GG).
+           Our goal is to highlight actions taken and tools developed by states
+           between 2022 and 2026 that constitute various styles of permitting reform, following", tags$a( href="https://www.policyinnovation.org/insights/9-types", target="_blank", "EPIC's 9 types of permitting reform."), 
+           "This includes legislation, executive orders, digital tools and other actions that improve permitting processes across various industries."),
+           
+           tags$div(class="detail-section-label", style = "margin-top:20px", "Disclaimer"),
+           tags$p("The information provided is by no means exhaustive. Where possible links to primary sources and other relevant information
+                  have been included in the description of the action.")),
+  
+  tags$div(class= "detail-section-label", style= "margin-top: 20px", "Feedback"),
+  tags$div(class="intro-modal", tags$p("Something missing? Reach out to Brent Efron at ", tags$a(href="mailto:brent@policyinnovation.org", "brent@policyinnovation.org"))
+          )
+  
+  )
 }
 
 # ---- Root UI ---------------------------------------------------------------
@@ -890,6 +921,10 @@ server <- function(input, output, session) {
   # Reopen intro modal from sidebar button
   observeEvent(input$btn_show_intro, {
     showModal(intro_modal())
+  })
+  
+  observeEvent(input$btn_show_method, {
+    showModal(method_modal())
   })
 
 
